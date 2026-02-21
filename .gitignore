@@ -1,6 +1,6 @@
 node_modules/
 build/
-dist/
+# dist/ - commented out to commit built files
 coverage/
 .DS_Store
 *.log
