@@ -62,6 +62,7 @@ export default function App() {
     onConfirm?: () => void;
   }>({ isOpen: false, title: '', message: '', type: 'alert' });
   const [toolbarPosition, setToolbarPosition] = useState<'left' | 'right' | 'bottom'>('left');
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const stageRef = useRef<any>(null);
   const currentElementId = useRef<string | null>(null);
@@ -469,16 +470,28 @@ export default function App() {
         </div>
 
         {/* Toolbar */}
-        <aside className={cn(
-          "absolute z-20",
-          toolbarPosition === 'left' && "left-6 top-1/2 -translate-y-1/2",
-          toolbarPosition === 'right' && "right-6 top-1/2 -translate-y-1/2",
-          toolbarPosition === 'bottom' && "bottom-6 left-1/2 -translate-x-1/2"
-        )}>
-          <div className={cn(
-            "bg-white p-2 rounded-2xl shadow-xl border border-black/5 flex gap-1",
-            toolbarPosition === 'bottom' ? "flex-row" : "flex-col"
-          )}>
+        <aside
+          className="absolute z-20"
+          style={{
+            transition: 'transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+            left: toolbarPosition === 'left' ? '24px' : toolbarPosition === 'right' ? 'calc(100vw - 24px)' : '50vw',
+            top: toolbarPosition === 'bottom' ? 'calc(100vh - 168px)' : '50vh',
+            transform:
+              toolbarPosition === 'left' ? 'translate(0, -50%)' :
+              toolbarPosition === 'right' ? 'translate(-100%, -50%)' :
+              'translate(-50%, 0)',
+          }}
+        >
+          <div
+            className={cn(
+              "bg-white p-2 rounded-2xl shadow-xl border border-black/5 flex gap-1",
+              toolbarPosition === 'bottom' ? "flex-row" : "flex-col",
+              isTransitioning && "scale-95 opacity-90"
+            )}
+            style={{
+              transition: 'all 600ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
+          >
             {/* Drawing Tools */}
             <ToolButton
               active={tool === 'select'}
@@ -511,7 +524,15 @@ export default function App() {
               label="Eraser"
             />
 
-            <div className={cn(toolbarPosition === 'bottom' ? "w-px bg-black/5 mx-1" : "h-px bg-black/5 my-1")} />
+            <div
+              className={cn(
+                "bg-black/5",
+                toolbarPosition === 'bottom' ? "w-px mx-1" : "h-px my-1"
+              )}
+              style={{
+                transition: 'all 600ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+              }}
+            />
 
             {/* Color Picker Button */}
             <div className="relative">
@@ -621,14 +642,33 @@ export default function App() {
               )}
             </div>
 
-            <div className={cn(toolbarPosition === 'bottom' ? "w-px bg-black/5 mx-1" : "h-px bg-black/5 my-1")} />
+            <div
+              className={cn(
+                "bg-black/5",
+                toolbarPosition === 'bottom' ? "w-px mx-1" : "h-px my-1"
+              )}
+              style={{
+                transition: 'all 600ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+              }}
+            />
 
             <ToolButton
               active={false}
               onClick={() => {
-                setToolbarPosition(prev =>
-                  prev === 'left' ? 'bottom' : prev === 'bottom' ? 'right' : 'left'
-                );
+                const currentPos = toolbarPosition;
+                const nextPos = currentPos === 'left' ? 'bottom' : currentPos === 'bottom' ? 'right' : 'left';
+
+                // Check if orientation is changing (vertical to horizontal or vice versa)
+                const isOrientationChange =
+                  (currentPos !== 'bottom' && nextPos === 'bottom') ||
+                  (currentPos === 'bottom' && nextPos !== 'bottom');
+
+                if (isOrientationChange) {
+                  setIsTransitioning(true);
+                  setTimeout(() => setIsTransitioning(false), 500);
+                }
+
+                setToolbarPosition(nextPos);
               }}
               icon={
                 toolbarPosition === 'left' ? <ArrowDown size={20} /> :
@@ -812,16 +852,16 @@ export default function App() {
   );
 }
 
-function ToolButton({ 
-  active, 
-  onClick, 
-  icon, 
-  label, 
-  className 
-}: { 
-  active: boolean; 
-  onClick: () => void; 
-  icon: React.ReactNode; 
+function ToolButton({
+  active,
+  onClick,
+  icon,
+  label,
+  className
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
   label: string;
   className?: string;
 }) {
@@ -830,10 +870,13 @@ function ToolButton({
       onClick={onClick}
       title={label}
       className={cn(
-        "p-2.5 rounded-xl transition-all flex items-center justify-center relative group",
+        "p-2.5 rounded-xl flex items-center justify-center relative group",
         active ? "bg-[#005a9c] text-white shadow-lg" : "text-gray-500 hover:bg-gray-100",
         className
       )}
+      style={{
+        transition: 'all 600ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+      }}
     >
       {icon}
       <span className="absolute left-full ml-3 px-2 py-1 bg-[#005a9c] text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
