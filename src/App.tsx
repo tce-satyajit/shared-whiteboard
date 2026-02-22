@@ -13,7 +13,9 @@ import {
   Users,
   Monitor,
   LogOut,
-  Move
+  ArrowDown,
+  ArrowRight,
+  ArrowLeft
 } from 'lucide-react';
 import { Tool, DrawingElement, Point } from './types';
 import { cn } from './utils';
@@ -628,8 +630,16 @@ export default function App() {
                   prev === 'left' ? 'bottom' : prev === 'bottom' ? 'right' : 'left'
                 );
               }}
-              icon={<Move size={20} />}
-              label="Move Toolbar"
+              icon={
+                toolbarPosition === 'left' ? <ArrowDown size={20} /> :
+                toolbarPosition === 'bottom' ? <ArrowRight size={20} /> :
+                <ArrowLeft size={20} />
+              }
+              label={
+                toolbarPosition === 'left' ? 'Move to Bottom' :
+                toolbarPosition === 'bottom' ? 'Move to Right' :
+                'Move to Left'
+              }
               className="text-gray-600 hover:bg-gray-100"
             />
 
