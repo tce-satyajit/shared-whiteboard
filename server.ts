@@ -1,8 +1,11 @@
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { createServer as createViteServer } from "vite";
 import path from "path";
+import dotenv from "dotenv";
+
+// Load environment variables from .env file
+dotenv.config();
 
 async function startServer() {
   const app = express();
@@ -100,15 +103,17 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(process.cwd(), "dist")));
+    // In production, serve static files from current directory
+    app.use(express.static(process.cwd()));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(process.cwd(), "dist", "index.html"));
+      res.sendFile(path.join(process.cwd(), "index.html"));
     });
   }
 
