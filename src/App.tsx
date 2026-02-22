@@ -12,7 +12,8 @@ import {
   Share2,
   Users,
   Monitor,
-  LogOut
+  LogOut,
+  Move
 } from 'lucide-react';
 import { Tool, DrawingElement, Point } from './types';
 import { cn } from './utils';
@@ -51,6 +52,14 @@ export default function App() {
   const [remoteCursors, setRemoteCursors] = useState<Map<string, Cursor>>(new Map());
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showStrokePicker, setShowStrokePicker] = useState(false);
+  const [modal, setModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'alert' | 'confirm';
+    onConfirm?: () => void;
+  }>({ isOpen: false, title: '', message: '', type: 'alert' });
+  const [toolbarPosition, setToolbarPosition] = useState<'left' | 'right' | 'bottom'>('left');
 
   const stageRef = useRef<any>(null);
   const currentElementId = useRef<string | null>(null);
@@ -259,10 +268,17 @@ export default function App() {
   };
 
   const clearBoard = () => {
-    if (window.confirm('Clear the entire board?')) {
-      socket?.emit('clear-board', boardId);
-      setElements([]);
-    }
+    setModal({
+      isOpen: true,
+      title: 'Clear Board',
+      message: 'Are you sure you want to clear the entire board? This cannot be undone.',
+      type: 'confirm',
+      onConfirm: () => {
+        socket?.emit('clear-board', boardId);
+        setElements([]);
+        setModal({ isOpen: false, title: '', message: '', type: 'alert' });
+      }
+    });
   };
 
   const handleMouseLeave = () => {
@@ -275,7 +291,12 @@ export default function App() {
     const url = window.location.href;
     try {
       await navigator.clipboard.writeText(url);
-      alert(`✅ Link copied!\n\nShare this URL to cast to other screens:\n${url}`);
+      setModal({
+        isOpen: true,
+        title: '✅ Link Copied!',
+        message: `Share this URL to cast to other screens:\n\n${url}`,
+        type: 'alert'
+      });
     } catch (err) {
       // Fallback for browsers that don't support clipboard API
       const textArea = document.createElement('textarea');
@@ -286,23 +307,40 @@ export default function App() {
       textArea.select();
       try {
         document.execCommand('copy');
-        alert(`✅ Link copied!\n\nShare this URL to cast to other screens:\n${url}`);
+        setModal({
+          isOpen: true,
+          title: '✅ Link Copied!',
+          message: `Share this URL to cast to other screens:\n\n${url}`,
+          type: 'alert'
+        });
       } catch (fallbackErr) {
-        alert(`❌ Could not copy automatically.\n\nPlease copy this URL manually:\n${url}`);
+        setModal({
+          isOpen: true,
+          title: '❌ Copy Failed',
+          message: `Could not copy automatically. Please copy this URL manually:\n\n${url}`,
+          type: 'alert'
+        });
       }
       document.body.removeChild(textArea);
     }
   };
 
   const handleLeaveSession = () => {
-    if (window.confirm('Are you sure you want to leave this session?')) {
-      socket?.disconnect();
-      setShowNamePrompt(true);
-      setUserName('');
-      setElements([]);
-      setUsers([]);
-      setRemoteCursors(new Map());
-    }
+    setModal({
+      isOpen: true,
+      title: 'Leave Session',
+      message: 'Are you sure you want to leave this session? Your drawings will be lost.',
+      type: 'confirm',
+      onConfirm: () => {
+        socket?.disconnect();
+        setShowNamePrompt(true);
+        setUserName('');
+        setElements([]);
+        setUsers([]);
+        setRemoteCursors(new Map());
+        setModal({ isOpen: false, title: '', message: '', type: 'alert' });
+      }
+    });
   };
 
   const handleJoinBoard = (e: React.FormEvent<HTMLFormElement>) => {
@@ -429,8 +467,16 @@ export default function App() {
         </div>
 
         {/* Toolbar */}
-        <aside className="absolute left-6 top-1/2 -translate-y-1/2 z-20">
-          <div className="bg-white p-2 rounded-2xl shadow-xl border border-black/5 flex flex-col gap-1">
+        <aside className={cn(
+          "absolute z-20",
+          toolbarPosition === 'left' && "left-6 top-1/2 -translate-y-1/2",
+          toolbarPosition === 'right' && "right-6 top-1/2 -translate-y-1/2",
+          toolbarPosition === 'bottom' && "bottom-6 left-1/2 -translate-x-1/2"
+        )}>
+          <div className={cn(
+            "bg-white p-2 rounded-2xl shadow-xl border border-black/5 flex gap-1",
+            toolbarPosition === 'bottom' ? "flex-row" : "flex-col"
+          )}>
             {/* Drawing Tools */}
             <ToolButton
               active={tool === 'select'}
@@ -445,7 +491,7 @@ export default function App() {
               label="Pencil"
             />
             <ToolButton
-              active={tool === 'circle'}
+              active={tool === 'rect'}
               onClick={() => setTool('rect')}
               icon={<Square size={20} />}
               label="Rectangle"
@@ -463,7 +509,7 @@ export default function App() {
               label="Eraser"
             />
 
-            <div className="h-px bg-black/5 my-1" />
+            <div className={cn(toolbarPosition === 'bottom' ? "w-px bg-black/5 mx-1" : "h-px bg-black/5 my-1")} />
 
             {/* Color Picker Button */}
             <div className="relative">
@@ -488,7 +534,12 @@ export default function App() {
 
               {/* Color Picker Dropdown */}
               {showColorPicker && (
-                <div className="absolute left-full ml-3 top-0 bg-white p-3 rounded-lg shadow-lg border border-gray-200" style={{ width: '180px' }}>
+                <div className={cn(
+                  "absolute bg-white p-3 rounded-lg shadow-lg border border-gray-200",
+                  toolbarPosition === 'left' && "left-full ml-3 top-0",
+                  toolbarPosition === 'right' && "right-full mr-3 top-0",
+                  toolbarPosition === 'bottom' && "bottom-full mb-3 left-0"
+                )} style={{ width: '180px' }}>
                   <div className="flex flex-wrap gap-2">
                     {COLORS.map(c => (
                       <div
@@ -535,7 +586,12 @@ export default function App() {
 
               {/* Stroke Width Dropdown */}
               {showStrokePicker && (
-                <div className="absolute left-full ml-3 top-0 bg-white p-3 rounded-xl shadow-lg border border-gray-300 z-50">
+                <div className={cn(
+                  "absolute bg-white p-3 rounded-xl shadow-lg border border-gray-300 z-50",
+                  toolbarPosition === 'left' && "left-full ml-3 top-0",
+                  toolbarPosition === 'right' && "right-full mr-3 top-0",
+                  toolbarPosition === 'bottom' && "bottom-full mb-3 left-0"
+                )}>
                   <div className="flex flex-col gap-3">
                     {STROKE_WIDTHS.map(w => (
                       <button
@@ -563,7 +619,19 @@ export default function App() {
               )}
             </div>
 
-            <div className="h-px bg-black/5 my-1" />
+            <div className={cn(toolbarPosition === 'bottom' ? "w-px bg-black/5 mx-1" : "h-px bg-black/5 my-1")} />
+
+            <ToolButton
+              active={false}
+              onClick={() => {
+                setToolbarPosition(prev =>
+                  prev === 'left' ? 'bottom' : prev === 'bottom' ? 'right' : 'left'
+                );
+              }}
+              icon={<Move size={20} />}
+              label="Move Toolbar"
+              className="text-gray-600 hover:bg-gray-100"
+            />
 
             <ToolButton
               active={false}
@@ -693,6 +761,43 @@ export default function App() {
           </Stage>
         </main>
       </div>
+
+      {/* Modal */}
+      {modal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-3">{modal.title}</h3>
+              <p className="text-gray-600 whitespace-pre-line leading-relaxed">{modal.message}</p>
+            </div>
+            <div className="flex gap-3 p-4 bg-gray-50 border-t border-gray-200">
+              {modal.type === 'confirm' ? (
+                <>
+                  <button
+                    onClick={() => setModal({ isOpen: false, title: '', message: '', type: 'alert' })}
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => modal.onConfirm?.()}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-[#005a9c] text-white font-medium hover:bg-[#004a80] transition-colors"
+                  >
+                    Confirm
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setModal({ isOpen: false, title: '', message: '', type: 'alert' })}
+                  className="w-full px-4 py-2.5 rounded-lg bg-[#005a9c] text-white font-medium hover:bg-[#004a80] transition-colors"
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
