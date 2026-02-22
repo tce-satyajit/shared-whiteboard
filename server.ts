@@ -31,9 +31,15 @@ async function startServer() {
       // Add user to the board's user list
       if (!users[boardId]) users[boardId] = [];
 
-      // Generate a random color for the user
+      // Assign unique color to the user
       const colors = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef'];
-      const userColor = colors[Math.floor(Math.random() * colors.length)];
+      const usedColors = users[boardId].map(u => u.color);
+      const availableColors = colors.filter(c => !usedColors.includes(c));
+
+      // Use available color, or cycle through if all are used
+      const userColor = availableColors.length > 0
+        ? availableColors[0]
+        : colors[users[boardId].length % colors.length];
 
       const user = { id: socket.id, name: userName, color: userColor };
       users[boardId].push(user);

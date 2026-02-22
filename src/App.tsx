@@ -49,6 +49,8 @@ export default function App() {
   const [userName, setUserName] = useState<string>('');
   const [showNamePrompt, setShowNamePrompt] = useState(true);
   const [remoteCursors, setRemoteCursors] = useState<Map<string, Cursor>>(new Map());
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showStrokePicker, setShowStrokePicker] = useState(false);
 
   const stageRef = useRef<any>(null);
   const currentElementId = useRef<string | null>(null);
@@ -129,6 +131,37 @@ export default function App() {
       newSocket.disconnect();
     };
   }, [boardId, userName]);
+
+  // Prevent page scrolling on touch devices
+  useEffect(() => {
+    const preventScroll = (e: TouchEvent) => {
+      if ((e.target as HTMLElement).closest('main')) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', preventScroll, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchmove', preventScroll);
+    };
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('aside')) {
+        setShowColorPicker(false);
+        setShowStrokePicker(false);
+      }
+    };
+
+    if (showColorPicker || showStrokePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showColorPicker, showStrokePicker]);
 
   const handleMouseDown = (e: any) => {
     if (tool === 'select') return;
@@ -238,10 +271,27 @@ export default function App() {
     }
   };
 
-  const copyRoomLink = () => {
+  const copyRoomLink = async () => {
     const url = window.location.href;
-    navigator.clipboard.writeText(url);
-    alert(`Room link copied! Share this URL to cast to other screens: ${url}`);
+    try {
+      await navigator.clipboard.writeText(url);
+      alert(`✅ Link copied!\n\nShare this URL to cast to other screens:\n${url}`);
+    } catch (err) {
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        alert(`✅ Link copied!\n\nShare this URL to cast to other screens:\n${url}`);
+      } catch (fallbackErr) {
+        alert(`❌ Could not copy automatically.\n\nPlease copy this URL manually:\n${url}`);
+      }
+      document.body.removeChild(textArea);
+    }
   };
 
   const handleLeaveSession = () => {
@@ -346,27 +396,27 @@ export default function App() {
       <div className="flex flex-1 relative overflow-hidden">
         {/* Active Users Panel */}
         {users.length > 0 && (
-          <div className="absolute top-6 right-6 z-20 bg-white rounded-2xl shadow-xl border border-black/5 p-4 w-64">
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-gray-100">
-              <Users size={18} className="text-[#005a9c]" />
-              <h3 className="font-semibold text-gray-800">Active Users ({users.length})</h3>
+          <div className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-lg border border-black/5 p-2 w-36">
+            <div className="flex items-center gap-1 mb-1.5 pb-1.5 border-b border-gray-100">
+              <Users size={12} className="text-[#005a9c]" />
+              <h3 className="font-semibold text-gray-800 text-xs">Users ({users.length})</h3>
             </div>
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="space-y-1 max-h-60 overflow-y-auto">
               {users.map((user) => (
-                <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                <div key={user.id} className="flex items-center gap-1.5 p-1 rounded hover:bg-gray-50 transition-colors">
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md"
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm"
                     style={{ backgroundColor: user.color }}
                   >
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-800 truncate">{user.name}</p>
+                    <p className="font-medium text-gray-800 truncate text-xs">{user.name}</p>
                     {user.id === socket?.id && (
-                      <p className="text-xs text-gray-500">(You)</p>
+                      <p className="text-[10px] text-gray-500">(You)</p>
                     )}
                   </div>
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                 </div>
               ))}
             </div>
@@ -379,87 +429,156 @@ export default function App() {
         </div>
 
         {/* Toolbar */}
-        <aside className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20">
+        <aside className="absolute left-6 top-1/2 -translate-y-1/2 z-20">
           <div className="bg-white p-2 rounded-2xl shadow-xl border border-black/5 flex flex-col gap-1">
-            <ToolButton 
-              active={tool === 'select'} 
-              onClick={() => setTool('select')} 
-              icon={<MousePointer2 size={20} />} 
+            {/* Drawing Tools */}
+            <ToolButton
+              active={tool === 'select'}
+              onClick={() => setTool('select')}
+              icon={<MousePointer2 size={20} />}
               label="Select"
             />
-            <ToolButton 
-              active={tool === 'pencil'} 
-              onClick={() => setTool('pencil')} 
-              icon={<Pencil size={20} />} 
+            <ToolButton
+              active={tool === 'pencil'}
+              onClick={() => setTool('pencil')}
+              icon={<Pencil size={20} />}
               label="Pencil"
             />
-            <ToolButton 
-              active={tool === 'rect'} 
-              onClick={() => setTool('rect')} 
-              icon={<Square size={20} />} 
+            <ToolButton
+              active={tool === 'circle'}
+              onClick={() => setTool('rect')}
+              icon={<Square size={20} />}
               label="Rectangle"
             />
-            <ToolButton 
-              active={tool === 'circle'} 
-              onClick={() => setTool('circle')} 
-              icon={<CircleIcon size={20} />} 
+            <ToolButton
+              active={tool === 'circle'}
+              onClick={() => setTool('circle')}
+              icon={<CircleIcon size={20} />}
               label="Circle"
             />
-            <ToolButton 
-              active={tool === 'eraser'} 
-              onClick={() => setTool('eraser')} 
-              icon={<Eraser size={20} />} 
+            <ToolButton
+              active={tool === 'eraser'}
+              onClick={() => setTool('eraser')}
+              icon={<Eraser size={20} />}
               label="Eraser"
             />
+
             <div className="h-px bg-black/5 my-1" />
-            <ToolButton 
-              active={false} 
-              onClick={clearBoard} 
-              icon={<Trash2 size={20} />} 
+
+            {/* Color Picker Button */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowColorPicker(!showColorPicker);
+                  setShowStrokePicker(false);
+                }}
+                className={cn(
+                  "w-full p-2.5 rounded-lg transition-all",
+                  showColorPicker ? "bg-[#005a9c]/10" : "hover:bg-gray-50"
+                )}
+                title="Choose Color"
+              >
+                <div className="flex items-center justify-center">
+                  <div
+                    className="w-8 h-8 rounded-lg border-2 border-gray-300"
+                    style={{ backgroundColor: color }}
+                  />
+                </div>
+              </button>
+
+              {/* Color Picker Dropdown */}
+              {showColorPicker && (
+                <div className="absolute left-full ml-3 top-0 bg-white p-3 rounded-lg shadow-lg border border-gray-200" style={{ width: '180px' }}>
+                  <div className="flex flex-wrap gap-2">
+                    {COLORS.map(c => (
+                      <div
+                        key={c}
+                        onClick={() => {
+                          setColor(c);
+                          setShowColorPicker(false);
+                        }}
+                        className="cursor-pointer rounded"
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          backgroundColor: c,
+                          border: color === c ? '2px solid #005a9c' : '2px solid #e5e7eb',
+                          flexShrink: 0
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Stroke Width Button */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowStrokePicker(!showStrokePicker);
+                  setShowColorPicker(false);
+                }}
+                className={cn(
+                  "w-full p-2.5 rounded-lg transition-all",
+                  showStrokePicker ? "bg-[#005a9c]/10" : "hover:bg-gray-50"
+                )}
+                title="Stroke Width"
+              >
+                <div className="flex items-center justify-center" style={{ height: '32px' }}>
+                  <div
+                    className="rounded bg-gray-800"
+                    style={{ width: '24px', height: strokeWidth + 'px' }}
+                  />
+                </div>
+              </button>
+
+              {/* Stroke Width Dropdown */}
+              {showStrokePicker && (
+                <div className="absolute left-full ml-3 top-0 bg-white p-3 rounded-xl shadow-lg border border-gray-300 z-50">
+                  <div className="flex flex-col gap-3">
+                    {STROKE_WIDTHS.map(w => (
+                      <button
+                        key={w}
+                        onClick={() => {
+                          setStrokeWidth(w);
+                          setShowStrokePicker(false);
+                        }}
+                        className={cn(
+                          "flex items-center justify-center py-2 px-4 rounded-lg transition-all",
+                          strokeWidth === w ? "bg-[#005a9c]/10" : "hover:bg-gray-50"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "rounded transition-colors",
+                            strokeWidth === w ? "bg-[#005a9c]" : "bg-gray-700"
+                          )}
+                          style={{ width: '40px', height: w + 'px' }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-black/5 my-1" />
+
+            <ToolButton
+              active={false}
+              onClick={clearBoard}
+              icon={<Trash2 size={20} />}
               label="Clear"
               className="text-red-500 hover:bg-red-50"
             />
           </div>
-
-          {/* Color Picker */}
-          <div className="bg-white p-3 rounded-2xl shadow-xl border border-black/5 grid grid-cols-2 gap-2">
-            {COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setColor(c)}
-                className={cn(
-                  "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
-                  color === c && "ring-2 ring-black ring-offset-2"
-                )}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-
-          {/* Stroke Width */}
-          <div className="bg-white p-3 rounded-2xl shadow-xl border border-black/5 flex flex-col gap-3">
-            {STROKE_WIDTHS.map(w => (
-              <button
-                key={w}
-                onClick={() => setStrokeWidth(w)}
-                className="flex items-center justify-center group"
-              >
-                <div 
-                  className={cn(
-                    "rounded-full bg-gray-400 transition-all",
-                    strokeWidth === w ? "bg-black" : "group-hover:bg-gray-600"
-                  )}
-                  style={{ width: w * 1.5, height: w * 1.5 }}
-                />
-              </button>
-            ))}
-          </div>
         </aside>
 
         {/* Canvas Area */}
-        <main className="flex-1 bg-white cursor-crosshair relative">
-          <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 
-               style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 0)', backgroundSize: '24px 24px' }} 
+        <main className="flex-1 bg-white cursor-crosshair relative" style={{ touchAction: 'none' }}>
+          <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+               style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 0)', backgroundSize: '24px 24px' }}
           />
           
           <Stage
