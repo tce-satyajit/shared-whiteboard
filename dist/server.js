@@ -19,11 +19,23 @@ async function startServer() {
     // In a real app, this would be in a database
     const boards = {};
     const users = {};
+    const boardMetadata = {};
     io.on("connection", (socket) => {
         console.log("User connected:", socket.id);
         socket.on("join-board", ({ boardId, userName }) => {
             socket.join(boardId);
             console.log(`User ${socket.id} (${userName}) joined board ${boardId}`);
+            // Track board metadata
+            if (!boardMetadata[boardId]) {
+                boardMetadata[boardId] = {
+                    id: boardId,
+                    createdAt: new Date(),
+                    lastActivity: new Date()
+                };
+            }
+            else {
+                boardMetadata[boardId].lastActivity = new Date();
+            }
             // Add user to the board's user list
             if (!users[boardId])
                 users[boardId] = [];
@@ -84,6 +96,20 @@ async function startServer() {
             }
         });
     });
+    // API endpoint to get active sessions
+    app.get("/api/active-sessions", (req, res) => {
+        const activeSessions = Object.keys(boardMetadata)
+            .filter(boardId => users[boardId] && users[boardId].length > 0)
+            .map(boardId => ({
+            id: boardId,
+            userCount: users[boardId].length,
+            userNames: users[boardId].map(u => u.name),
+            createdAt: boardMetadata[boardId].createdAt,
+            lastActivity: boardMetadata[boardId].lastActivity
+        }))
+            .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+        res.json(activeSessions);
+    });
     // Vite middleware for development
     if (process.env.NODE_ENV !== "production") {
         const { createServer: createViteServer } = await import("vite");
@@ -94,9 +120,10 @@ async function startServer() {
         app.use(vite.middlewares);
     }
     else {
-        app.use(express.static(path.join(process.cwd(), "dist")));
+        // In production, serve static files from current directory
+        app.use(express.static(process.cwd()));
         app.get("*", (req, res) => {
-            res.sendFile(path.join(process.cwd(), "dist", "index.html"));
+            res.sendFile(path.join(process.cwd(), "index.html"));
         });
     }
     httpServer.listen(PORT, "0.0.0.0", () => {

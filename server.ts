@@ -23,6 +23,7 @@ async function startServer() {
   // In a real app, this would be in a database
   const boards: Record<string, any[]> = {};
   const users: Record<string, { id: string; name: string; color: string }[]> = {};
+  const boardMetadata: Record<string, { id: string; createdAt: Date; lastActivity: Date }> = {};
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
@@ -30,6 +31,17 @@ async function startServer() {
     socket.on("join-board", ({ boardId, userName }: { boardId: string; userName: string }) => {
       socket.join(boardId);
       console.log(`User ${socket.id} (${userName}) joined board ${boardId}`);
+
+      // Track board metadata
+      if (!boardMetadata[boardId]) {
+        boardMetadata[boardId] = {
+          id: boardId,
+          createdAt: new Date(),
+          lastActivity: new Date()
+        };
+      } else {
+        boardMetadata[boardId].lastActivity = new Date();
+      }
 
       // Add user to the board's user list
       if (!users[boardId]) users[boardId] = [];
@@ -99,6 +111,22 @@ async function startServer() {
         }
       }
     });
+  });
+
+  // API endpoint to get active sessions
+  app.get("/api/active-sessions", (req, res) => {
+    const activeSessions = Object.keys(boardMetadata)
+      .filter(boardId => users[boardId] && users[boardId].length > 0)
+      .map(boardId => ({
+        id: boardId,
+        userCount: users[boardId].length,
+        userNames: users[boardId].map(u => u.name),
+        createdAt: boardMetadata[boardId].createdAt,
+        lastActivity: boardMetadata[boardId].lastActivity
+      }))
+      .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+
+    res.json(activeSessions);
   });
 
   // Vite middleware for development

@@ -63,6 +63,13 @@ export default function App() {
   }>({ isOpen: false, title: '', message: '', type: 'alert' });
   const [toolbarPosition, setToolbarPosition] = useState<'left' | 'right' | 'bottom'>('left');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [activeSessions, setActiveSessions] = useState<Array<{
+    id: string;
+    userCount: number;
+    userNames: string[];
+    createdAt: string;
+    lastActivity: string;
+  }>>([]);
 
   const stageRef = useRef<any>(null);
   const currentElementId = useRef<string | null>(null);
@@ -85,6 +92,16 @@ export default function App() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // Fetch active sessions when on login page
+  useEffect(() => {
+    if (showNamePrompt) {
+      fetch('/api/active-sessions')
+        .then(res => res.json())
+        .then(sessions => setActiveSessions(sessions))
+        .catch(err => console.error('Failed to fetch active sessions:', err));
+    }
+  }, [showNamePrompt]);
 
   // Initialize Socket
   useEffect(() => {
@@ -298,7 +315,11 @@ export default function App() {
         isOpen: true,
         title: '✅ Link Copied!',
         message: `Share this URL to cast to other screens:\n\n${url}`,
-        type: 'alert'
+        type: 'alert',
+        onConfirm: () => {
+          window.open(url, '_blank');
+          setModal({ isOpen: false, title: '', message: '', type: 'alert' });
+        }
       });
     } catch (err) {
       // Fallback for browsers that don't support clipboard API
@@ -314,7 +335,11 @@ export default function App() {
           isOpen: true,
           title: '✅ Link Copied!',
           message: `Share this URL to cast to other screens:\n\n${url}`,
-          type: 'alert'
+          type: 'alert',
+          onConfirm: () => {
+            window.open(url, '_blank');
+            setModal({ isOpen: false, title: '', message: '', type: 'alert' });
+          }
         });
       } catch (fallbackErr) {
         setModal({
@@ -353,11 +378,49 @@ export default function App() {
     }
   };
 
+  const handleJoinSession = (sessionId: string) => {
+    if (userName.trim()) {
+      // Clear existing elements before joining new session
+      setElements([]);
+      setRemoteCursors(new Map());
+      window.location.hash = sessionId;
+      setBoardId(sessionId);
+      setShowNamePrompt(false);
+    } else {
+      setModal({
+        isOpen: true,
+        title: '⚠️ Name Required',
+        message: 'Please enter your name before joining a session.',
+        type: 'alert'
+      });
+    }
+  };
+
+  const handleCreateNew = () => {
+    if (userName.trim()) {
+      // Clear existing elements before creating new session
+      setElements([]);
+      setRemoteCursors(new Map());
+      const newId = nanoid(6);
+      window.location.hash = newId;
+      setBoardId(newId);
+      setShowNamePrompt(false);
+    } else {
+      setModal({
+        isOpen: true,
+        title: '⚠️ Name Required',
+        message: 'Please enter your name before creating a session.',
+        type: 'alert'
+      });
+    }
+  };
+
   if (showNamePrompt) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-[#005a9c] to-[#003d6b]">
-        <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
-          <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#005a9c] to-[#003d6b] p-6">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center gap-3 p-6 border-b border-gray-200">
             <div className="w-12 h-12 bg-[#005a9c] rounded-xl flex items-center justify-center">
               <Monitor className="text-white w-7 h-7" />
             </div>
@@ -366,26 +429,77 @@ export default function App() {
               <p className="text-xs text-gray-500 font-mono uppercase tracking-wider">Collaborative Whiteboard</p>
             </div>
           </div>
-          <form onSubmit={handleJoinBoard} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Enter your name"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#005a9c] focus:border-transparent outline-none"
-                autoFocus
-              />
+
+          {/* Name Input */}
+          <div className="p-6 border-b border-gray-200">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
+            <input
+              type="text"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              placeholder="Enter your name"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#005a9c] focus:border-transparent outline-none"
+              autoFocus
+            />
+          </div>
+
+          {/* Active Sessions */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Active Sessions</h2>
+              <span className="text-sm text-gray-500">{activeSessions.length} active</span>
             </div>
+
+            {activeSessions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-sm">No active sessions</p>
+                <p className="text-xs mt-1">Create a new session to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeSessions.map(session => (
+                  <div
+                    key={session.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-[#005a9c] hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <code className="text-sm font-mono font-semibold text-gray-800">#{session.id}</code>
+                      </div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <Users size={14} className="text-gray-500" />
+                        <p className="text-xs text-gray-700">
+                          {session.userNames && session.userNames.length > 0
+                            ? session.userNames.join(', ')
+                            : `${session.userCount} ${session.userCount === 1 ? 'user' : 'users'}`
+                          }
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Last activity: {new Date(session.lastActivity).toLocaleTimeString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleJoinSession(session.id)}
+                      className="px-4 py-2 bg-[#005a9c] text-white text-sm font-medium rounded-lg hover:bg-[#004a80] transition-colors"
+                    >
+                      Join
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Create New Button */}
+          <div className="p-6 border-t border-gray-200">
             <button
-              type="submit"
-              disabled={!userName.trim()}
-              className="w-full bg-[#005a9c] text-white py-3 rounded-xl font-medium hover:bg-[#004a80] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleCreateNew}
+              className="w-full bg-emerald-600 text-white py-3 rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
             >
-              Join Whiteboard
+              <span>+</span> Create New Session
             </button>
-          </form>
+          </div>
         </div>
       </div>
     );
@@ -834,6 +948,21 @@ export default function App() {
                     className="flex-1 px-4 py-2.5 rounded-lg bg-[#005a9c] text-white font-medium hover:bg-[#004a80] transition-colors"
                   >
                     Confirm
+                  </button>
+                </>
+              ) : modal.onConfirm ? (
+                <>
+                  <button
+                    onClick={() => setModal({ isOpen: false, title: '', message: '', type: 'alert' })}
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition-colors"
+                  >
+                    OK
+                  </button>
+                  <button
+                    onClick={() => modal.onConfirm?.()}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-[#005a9c] text-white font-medium hover:bg-[#004a80] transition-colors"
+                  >
+                    Open in New Tab
                   </button>
                 </>
               ) : (
