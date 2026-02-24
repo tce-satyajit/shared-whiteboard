@@ -22,7 +22,7 @@ async function startServer() {
   // Store whiteboard state in memory (for demo purposes)
   // In a real app, this would be in a database
   const boards: Record<string, any[]> = {};
-  const users: Record<string, { id: string; name: string; color: string }[]> = {};
+  const users: Record<string, { id: string; name: string; color: string; ipAddress: string; joinedAt: Date }[]> = {};
   const boardMetadata: Record<string, { id: string; createdAt: Date; lastActivity: Date }> = {};
 
   io.on("connection", (socket) => {
@@ -30,7 +30,10 @@ async function startServer() {
 
     socket.on("join-board", ({ boardId, userName }: { boardId: string; userName: string }) => {
       socket.join(boardId);
-      console.log(`User ${socket.id} (${userName}) joined board ${boardId}`);
+
+      // Get user's IP address
+      const ipAddress = socket.handshake.address || 'unknown';
+      console.log(`User ${socket.id} (${userName}) joined board ${boardId} from IP: ${ipAddress}`);
 
       // Track board metadata
       if (!boardMetadata[boardId]) {
@@ -56,7 +59,13 @@ async function startServer() {
         ? availableColors[0]
         : colors[users[boardId].length % colors.length];
 
-      const user = { id: socket.id, name: userName, color: userColor };
+      const user = {
+        id: socket.id,
+        name: userName,
+        color: userColor,
+        ipAddress,
+        joinedAt: new Date()
+      };
       users[boardId].push(user);
 
       // Send current state to the new user
@@ -120,7 +129,11 @@ async function startServer() {
       .map(boardId => ({
         id: boardId,
         userCount: users[boardId].length,
-        userNames: users[boardId].map(u => u.name),
+        users: users[boardId].map(u => ({
+          name: u.name,
+          ipAddress: u.ipAddress,
+          joinedAt: u.joinedAt
+        })),
         createdAt: boardMetadata[boardId].createdAt,
         lastActivity: boardMetadata[boardId].lastActivity
       }))

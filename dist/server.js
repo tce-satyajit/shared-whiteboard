@@ -24,7 +24,9 @@ async function startServer() {
         console.log("User connected:", socket.id);
         socket.on("join-board", ({ boardId, userName }) => {
             socket.join(boardId);
-            console.log(`User ${socket.id} (${userName}) joined board ${boardId}`);
+            // Get user's IP address
+            const ipAddress = socket.handshake.address || 'unknown';
+            console.log(`User ${socket.id} (${userName}) joined board ${boardId} from IP: ${ipAddress}`);
             // Track board metadata
             if (!boardMetadata[boardId]) {
                 boardMetadata[boardId] = {
@@ -47,7 +49,13 @@ async function startServer() {
             const userColor = availableColors.length > 0
                 ? availableColors[0]
                 : colors[users[boardId].length % colors.length];
-            const user = { id: socket.id, name: userName, color: userColor };
+            const user = {
+                id: socket.id,
+                name: userName,
+                color: userColor,
+                ipAddress,
+                joinedAt: new Date()
+            };
             users[boardId].push(user);
             // Send current state to the new user
             if (boards[boardId]) {
@@ -103,7 +111,11 @@ async function startServer() {
             .map(boardId => ({
             id: boardId,
             userCount: users[boardId].length,
-            userNames: users[boardId].map(u => u.name),
+            users: users[boardId].map(u => ({
+                name: u.name,
+                ipAddress: u.ipAddress,
+                joinedAt: u.joinedAt
+            })),
             createdAt: boardMetadata[boardId].createdAt,
             lastActivity: boardMetadata[boardId].lastActivity
         }))

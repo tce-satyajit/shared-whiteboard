@@ -31,6 +31,8 @@ interface User {
   id: string;
   name: string;
   color: string;
+  ipAddress: string;
+  joinedAt: Date;
 }
 
 interface Cursor {
@@ -551,16 +553,16 @@ export default function App() {
       <div className="flex flex-1 relative overflow-hidden">
         {/* Active Users Panel */}
         {users.length > 0 && (
-          <div className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-lg border border-black/5 p-2 w-36">
+          <div className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-lg border border-black/5 p-2 w-44">
             <div className="flex items-center gap-1 mb-1.5 pb-1.5 border-b border-gray-100">
               <Users size={12} className="text-[#005a9c]" />
               <h3 className="font-semibold text-gray-800 text-xs">Users ({users.length})</h3>
             </div>
             <div className="space-y-1 max-h-60 overflow-y-auto">
               {users.map((user) => (
-                <div key={user.id} className="flex items-center gap-1.5 p-1 rounded hover:bg-gray-50 transition-colors">
+                <div key={user.id} className="flex items-start gap-1.5 p-1 rounded hover:bg-gray-50 transition-colors">
                   <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm"
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0"
                     style={{ backgroundColor: user.color }}
                   >
                     {user.name.charAt(0).toUpperCase()}
@@ -570,8 +572,11 @@ export default function App() {
                     {user.id === socket?.id && (
                       <p className="text-[10px] text-gray-500">(You)</p>
                     )}
+                    {user.ipAddress && (
+                      <p className="text-[9px] text-gray-500 font-mono truncate">{user.ipAddress}</p>
+                    )}
                   </div>
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse flex-shrink-0 mt-1" />
                 </div>
               ))}
             </div>
