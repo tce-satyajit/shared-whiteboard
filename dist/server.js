@@ -14,7 +14,7 @@ async function startServer() {
             methods: ["GET", "POST"]
         }
     });
-    const PORT = 3001;
+    const PORT = 443;
     // Store whiteboard state in memory (for demo purposes)
     // In a real app, this would be in a database
     const boards = {};
@@ -120,10 +120,10 @@ async function startServer() {
         app.use(vite.middlewares);
     }
     else {
-        // In production, serve static files from current directory
-        app.use(express.static(process.cwd()));
-        app.get("*", (req, res) => {
-            res.sendFile(path.join(process.cwd(), "index.html"));
+        // In production, serve static files from /shareboard/ path
+        app.use('/shareboard', express.static(path.join(process.cwd(), 'dist')));
+        app.get("/shareboard/*", (req, res) => {
+            res.sendFile(path.join(process.cwd(), "dist", "index.html"));
         });
     }
     httpServer.listen(PORT, "0.0.0.0", () => {
